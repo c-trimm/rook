@@ -6,13 +6,17 @@ define('TIMEZONE', 'America/New_York');
 define('DATE_FORMAT', 'Y-m-d--H:i');
 define('EDITOR_COMMAND', 'nano');
 define('HERE', realpath(dirname(__FILE__)).'/');
-define('TEMPLATE', HERE.'.template');
 define('LOG_PATH', HERE.'logs/');
 
 if (!is_dir(LOG_PATH)) mkdir(LOG_PATH);
 
-$ops = getopt('ldy');
+$ops = getopt('ldfm:', array('help'));
 $stdin = fopen('php://stdin', 'r');
+
+if (isset($ops['help'])) {
+    help();
+    exit;
+}
 
 # Open last if it exists
 if (isset($ops['l'])) {
@@ -31,7 +35,7 @@ if (isset($ops['d'])) {
     $last = $dirList[0] !== '..' ? $dirList[0] : false;
     
     if ($last) {
-        if (!isset($ops['y'])) {
+        if (!isset($ops['f'])) {
             echo 'Are you sure you wish to delete log ' . $last . '? (y/n) ';
             $answer = trim(fgets(STDIN));
         } else {
@@ -50,11 +54,43 @@ if (isset($ops['d'])) {
     exit;
 }
 
-# Create
-$now = date_format(new DateTime('now', new DateTimeZone(TIMEZONE)), DATE_FORMAT);
-file_put_contents(LOG_PATH.$now, file_get_contents(TEMPLATE));
-edit($now);
+# Create Entry
+if (isset($ops['m'])) {
+    if (empty($ops['m'])) exit('Must provide a message when using -m.'.PHP_EOL);
+    # Inline Entry
+    $now = date_format(new DateTime('now', new DateTimeZone(TIMEZONE)), DATE_FORMAT);
+    file_put_contents(LOG_PATH.$now, $ops['m']);
+    echo 'Entry added: ' . $now;
+} 
+else {
+    # Use Editor
+    $now = date_format(new DateTime('now', new DateTimeZone(TIMEZONE)), DATE_FORMAT);
+    edit($now);
+}
 
 function edit($file) {
     system(EDITOR_COMMAND . ' ' . LOG_PATH.$file . ' > `tty`');
+}
+
+function help() {
+    echo <<<HELP
+
+Rook is a command-line based journal manager. You can create journal entries
+by using the inline method (-m), or by editing the rook shell file and specfiying
+an editor. By default, rook uses nano.
+
+usage: rook [options]
+    options:
+        -l    Edit last entry
+
+        -d    Delete last entry
+        
+        -f    Force delete last entry (no confirmation)
+        
+        -m    Inline entry - requires a message passed as a value
+              ex: rook -m 'This is a journal entry'
+
+        -o    Output rook entries as an html file and open it.
+HELP;
+echo PHP_EOL;
 }
