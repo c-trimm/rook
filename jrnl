@@ -1,0 +1,60 @@
+#!/usr/bin/env php
+<?php
+
+# Config
+define('TIMEZONE', 'America/New_York');
+define('DATE_FORMAT', 'Y-m-d--H:i');
+define('EDITOR_COMMAND', 'nano');
+define('HERE', realpath(dirname(__FILE__)).'/');
+define('TEMPLATE', HERE.'.template');
+define('LOG_PATH', HERE.'logs/');
+
+if (!is_dir(LOG_PATH)) mkdir(LOG_PATH);
+
+$ops = getopt('ldy');
+$stdin = fopen('php://stdin', 'r');
+
+# Open last if it exists
+if (isset($ops['l'])) {
+    $dirList = scandir(LOG_PATH, 1);
+    $last = $dirList[0] !== '..' ? $dirList[0] : false;
+    
+    if ($last) edit($last);
+    else exit('Could not open last entry. Last entry file not found.'.PHP_EOL);
+    
+    exit;
+}
+
+# Delete last if it exists
+if (isset($ops['d'])) {
+    $dirList = scandir(LOG_PATH, 1);
+    $last = $dirList[0] !== '..' ? $dirList[0] : false;
+    
+    if ($last) {
+        if (!isset($ops['y'])) {
+            echo 'Are you sure you wish to delete log ' . $last . '? (y/n) ';
+            $answer = trim(fgets(STDIN));
+        } else {
+            $answer = 'y';
+        }
+
+        if ($answer == 'y' || $answer == 'yes') {
+            unlink(LOG_PATH.$last);
+            echo 'Deleted ' . $last . PHP_EOL;
+        }
+    }
+    else {
+        exit('Could not delete last entry. Last entry file not found.'.PHP_EOL);
+    }
+
+    exit;
+}
+
+# Create
+$now = date_format(new DateTime('now', new DateTimeZone(TIMEZONE)), DATE_FORMAT);
+file_put_contents(LOG_PATH.$now, file_get_contents(TEMPLATE));
+edit($now);
+
+function edit($file) {
+    system(EDITOR_COMMAND . ' ' . LOG_PATH.$file . ' > `tty`');
+}
