@@ -3,94 +3,182 @@
 
 # Config
 define('TIMEZONE', 'America/New_York');
-define('DATE_FORMAT', 'Y-m-d--H:i');
-define('EDITOR_COMMAND', 'nano');
+define('DATE_FORMAT', 'Y-m-d');
+define('PRETTY_DATE_FORMAT', 'l, F j, Y');
+define('EDITOR_COMMAND', 'nano -Eim');
 define('HERE', realpath(dirname(__FILE__)).'/');
-define('LOG_PATH', HERE.'logs/');
+define('ENTRIES_PATH', HERE.'entries/');
 
-if (!is_dir(LOG_PATH)) mkdir(LOG_PATH);
-
-$ops = getopt('ldfm:', array('help'));
+$ops = getopt('ldfm:t:j:', array('help'));
 $stdin = fopen('php://stdin', 'r');
+
+$journal = isset($ops['j']) ? $ops['j'] : '';
+$journal = preg_replace("/[^A-Za-z0-9-\.]/", '', $journal);
+$journal = $journal ? $journal.'/': '';
+define('JOURNAL_PATH', ENTRIES_PATH.$journal);
+
+if (!is_dir(JOURNAL_PATH)) mkdir(JOURNAL_PATH);
 
 if (isset($ops['help'])) {
     help();
     exit;
 }
 
-# Open last if it exists
-if (isset($ops['l'])) {
-    $dirList = scandir(LOG_PATH, 1);
-    $last = $dirList[0] !== '..' ? $dirList[0] : false;
-    
-    if ($last) edit($last);
-    else exit('Could not open last entry. Last entry file not found.'.PHP_EOL);
-    
-    exit;
-}
-
-# Delete last if it exists
+# Delete today's entry, if it exists
 if (isset($ops['d'])) {
-    $dirList = scandir(LOG_PATH, 1);
-    $last = $dirList[0] !== '..' ? $dirList[0] : false;
-    
-    if ($last) {
-        if (!isset($ops['f'])) {
-            echo 'Are you sure you wish to delete log ' . $last . '? (y/n) ';
-            $answer = trim(fgets(STDIN));
-        } else {
-            $answer = 'y';
-        }
+    if (!file_exists(getfilePath())) exit('Could not delete today\'s entry. File not found.'.PHP_EOL);
 
-        if ($answer == 'y' || $answer == 'yes') {
-            unlink(LOG_PATH.$last);
-            echo 'Deleted ' . $last . PHP_EOL;
-        }
+    $answer = 'y';
+    if (!isset($ops['f'])) {
+        echo 'Are you sure you wish to delete today\'s entry: ' . $journal.getFileName() . '? (y/n) ';
+        $answer = trim(fgets(STDIN));
     }
-    else {
-        exit('Could not delete last entry. Last entry file not found.'.PHP_EOL);
+
+    if ($answer == 'y' || $answer == 'yes') {
+        unlink(getfilePath());
+        commit('Deleted');
     }
 
     exit;
 }
 
-# Create Entry
+# Create/Update Entry
 if (isset($ops['m'])) {
     if (empty($ops['m'])) exit('Must provide a message when using -m.'.PHP_EOL);
-    # Inline Entry
-    $now = date_format(new DateTime('now', new DateTimeZone(TIMEZONE)), DATE_FORMAT);
-    file_put_contents(LOG_PATH.$now, $ops['m']);
-    echo 'Entry added: ' . $now;
+
+    if (!file_exists(getFilePath())) {
+        $template = getTemplate($ops);
+        file_put_contents(getFilePath(), $template['template']);
+    }
+
+    $file = fopen(getFilePath(), 'a');
+    fwrite($file, "\n".$ops['m']);
+    fclose($file);
+    commit('Appended to');
 } 
+else if (file_exists(getFilePath())) {
+    edit();
+    commit('Edited');
+}
 else {
-    # Use Editor
-    $now = date_format(new DateTime('now', new DateTimeZone(TIMEZONE)), DATE_FORMAT);
-    edit($now);
+    $template = getTemplate($ops);
+    file_put_contents(getFilePath(), $template['template']);
+    edit($template['start_position_line'], $template['start_position_col']);
+    commit('Created');
 }
 
-function edit($file) {
-    system(EDITOR_COMMAND . ' ' . LOG_PATH.$file . ' > `tty`');
+
+#################
+### FUNCTIONS ###
+#################
+
+function getTemplate($ops) {
+    if (!file_exists(HERE.'.template')) {
+        return ['template' => '', 'start_position' => [0,0]];
+    }
+
+    $template = '';
+    $tags = isset($ops['t']) ? $ops['t'] : '';
+
+    $file = fopen(HERE.'.template', 'r');
+    $lineNumber = 1;
+    $startLine = 0;
+    $startColumn = 0;
+
+    while (!feof($file)) {
+        $line = fgets($file);
+        $startPosition = strpos($line, '{start}');
+
+        if ($startPosition !== false) {
+            $startLine = $lineNumber;
+            $startColumn = $startPosition + 1;
+            $line = str_replace('{start}', '', $line);
+        }
+
+        $line = str_replace('{tags}', $tags, $line);
+        $line = str_replace('{date}', getPrettyDate(), $line);
+
+        $template .= $line;
+        $lineNumber++;
+    }
+
+    fclose($file);
+
+    return [
+        'template' => $template,
+        'start_position_line' => $startLine,
+        'start_position_col' => $startColumn
+    ];
+}
+
+function edit($line = 9999999, $column = 0) {
+    $command = EDITOR_COMMAND;
+
+    # Set {start} line and position for nano
+    if (strpos($command, 'nano') !== false) {
+        $command .= ' +'.$line.','.$column;
+    }
+
+    system($command.' '.getFilePath().' > `tty`');
+}
+
+function commit($action) {
+    $message = $action . ' ' . getFileName();
+    echo $message.PHP_EOL;
+
+    $gitPath = is_dir(JOURNAL_PATH.'.git') ? JOURNAL_PATH : ENTRIES_PATH;
+    if (!is_dir($gitPath.'.git')) return;
+
+    system('cd '.$gitPath.' && git stash && git pull');
+    system('cd '.$gitPath.' && git stash pop');
+    system('cd '.$gitPath.' && git add . && git commit -m "'.$message.'" && git push origin master');
+}
+
+function getFileName() {
+    return date_format(new DateTime('now', new DateTimeZone(TIMEZONE)), DATE_FORMAT).'.md';
+}
+
+function getFilePath() {
+    return JOURNAL_PATH.getFileName();
+}
+
+function getPrettyDate() {
+    return date_format(new DateTime('now', new DateTimeZone(TIMEZONE)), PRETTY_DATE_FORMAT);
 }
 
 function help() {
     echo <<<HELP
 
 Rook is a command-line based journal manager. You can create journal entries
-by using the inline method (-m), or by editing the rook shell file and specfiying
+by using the inline method (-m), or by editing the rook script and specfiying
 an editor. By default, rook uses nano.
+
+Create a .template file to use the same template every day. Rook will replace
+some template tags:
+    - {date}: Pretty print of today's date.
+    - {start}: Will remove this and place cursor at start if using nano.
+    - {tags}: If -t option is used, will replace this with option value.
+
+If there is a git repository in 'entries' or in a journal directory (ex 'entries/work'),
+rook will attempt to commit and push after any operation.
 
 usage: rook [options]
     options:
-        -l    Edit last entry
+        -j 'name'
+           Name of journal. Puts entry in 'entries/name'.
 
-        -d    Delete last entry
+        -d[f]
+           Delete today's entry.
+           If 'f' is used, forces delete without confirmation.
         
-        -f    Force delete last entry (no confirmation)
-        
-        -m    Inline entry - requires a message passed as a value
-              ex: rook -m 'This is a journal entry'
+        -m 'message'
+           Inline entry - requires a message passed as a value. Will append 
+           to current day's entry on a new line.
+           ex: rook -m 'This is a journal entry'
 
-        -o    Output rook entries as an html file and open it.
+        -t 'tag(s)'
+           Replace {tags} with the passed value.
+           ex: rook -t 'mytag, foo'
 HELP;
 echo PHP_EOL;
 }
