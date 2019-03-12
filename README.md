@@ -2,6 +2,18 @@
 ### A simple php-based journal manager
 Rook is a command-line based journal manager. You can create journal entries by using the inline entry method `-m`, or by editing the rook script and specifying an editor. By default, rook uses nano. 
 
+## Installation
+Rook requires PHP 7.0+ to be installed.
+
+Clone the repo
+```bash
+git clone git@github.com:c-trimm/rook.git
+```
+Add rook to your path. Assuming you cloned rook in your home directory, put this in your .profile to use anywhere.
+```bash
+export PATH=~/rook:$PATH
+```
+
 ## Usage
 Simply call the `rook` command and a new markdown journal entry will be created with todays date in the format `YYYY-MM-DD.md`. Once an entry is created for the day, calling `rook` again will open the file and place the cursor at the end.
 
