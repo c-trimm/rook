@@ -150,7 +150,7 @@ function help() {
     echo <<<HELP
 
 Rook is a command-line based journal manager. You can create journal entries
-by using the inline method (-m), or by editing the rook script and specfiying
+by using the inline method (-m), or by editing the rook script and specifying
 an editor. By default, rook uses nano.
 
 Create a .template file to use the same template every day. Rook will replace
