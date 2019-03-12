@@ -2,7 +2,7 @@
 ### A simple php-based journal manager
 Rook is a command-line based journal manager. You can create journal entries by using the inline entry method `-m`, or by editing the rook script and specifying an editor. By default, rook uses nano. 
 
-This is a personal project that I started as a way to quickly create and track journal entires. It may have bugs, and the code was thrown together pretty quickly. Please don't judge me too harshly. :)
+This is a personal project that I started as a way to quickly create and track journal entries. It may have bugs, and the code was thrown together pretty quickly. Please don't judge me too harshly. :)
 
 ## Installation
 Rook requires PHP 7.0+ to be installed.
